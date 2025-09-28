@@ -174,20 +174,38 @@ zori_nyc =
   janitor::clean_names() |> 
   rename(
     zip_code = region_name,
-    county = county_name
   ) |> 
   mutate(
-    county = str_remove(county, " County$")
+    county_name = str_remove(county_name, " County$")
   )
 ```
 
 merge to create a single, final dataset; and organize this so that variables and observations are in meaningful orders.
 
+
+```{r}
+A = zori_nyc |> 
+  select(region_name = zip_code, county_name)
+
+B = zipcode |> 
+  select(zip_code, county)
+
+compare_county = 
+  left_join(A, B, by = c("region_name" = "zip_code")) |> 
+  mutate(
+    county_clean = str_remove(county_name, " County$"),
+    match = county_clean == county
+  )
+```
+While both datasets contain county information, these labels are not always consistent. Therefore, in the merged dataset, I used zip_code as the unique join key between Zillow ZORI data and NYC ZIP code data.
+ 
+ 
 ```{r}
 merge_zori = 
-  left_join(zori_nyc, zipcode, by = c("zip_code","county")) |> 
-  select(state_fips:neighborhood, everything())
+  left_join(zori_nyc, zipcode, by = c("zip_code")) |> 
+  select(county:neighborhood, everything())
 ```
+
 
 **Briefly describe the resulting tidy dataset. How many total observations exist? How many unique ZIP codes are included, and how many unique neighborhoods?**
 
@@ -206,4 +224,18 @@ There are `r nrow(not_included)` ZIP codes that appear in the ZIP code dataset b
 
 **Rental prices fluctuated dramatically during the COVID-19 pandemic. For all available ZIP codes, compare rental prices in January 2021 to prices in January 2020. Make a table that shows the 10 ZIP codes (along with the borough and neighborhood) with largest drop in price from January 2020 to 2021. Comment.**
 
+```{r}
+covid_19 = merge_zori |> 
+  select(zip_code, county, neighborhood, x2020_01_31, x2021_01_31) |> 
+  mutate(
+    drop = x2020_01_31 - x2021_01_31
+  ) |> 
+  arrange(desc(drop)) |> 
+  slice(1:10) 
+  
+
+knitr::kable(covid_19)
+```
+
+The 10 zipcopde with the largest drop in price during the COVID-19 pandemic are all located in New York county (Manhattan borough). The maximum drop was about `r round(max(covid_19$drop),0)`, observed in `r covid_19$neighborhood[1]`. The neighborhoods represented include `r paste(na.omit(unique(covid_19$neighborhood)), collapse = ", ")`.
 
