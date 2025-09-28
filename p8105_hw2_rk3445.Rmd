@@ -1,0 +1,209 @@
+---
+title: "p8105_hw2_rk3445"
+author: "Rosie Kwon"
+output: github_document
+---
+
+```{r}
+library(tidyverse)
+library(readxl)
+```
+
+## Problem 1
+
+**First, import and clean the data in pols-month.csv. Use `separate() ` to break up the variable `mon` into integer variables `year`, `month`, and `day`; create a `president` variable taking values `gop` and `dem`, and remove `prez_dem` and `prez_gop`; and remove the day variable.**
+
+```{r}
+pols_month = 
+  read_csv("data/pols-month.csv") |> 
+  janitor::clean_names() |> 
+  separate(
+    mon, into = c("year", "month", "day"), sep = "-") |> 
+  mutate(
+    year = as.integer(year),
+    month = as.integer(month),
+    president = case_when(
+      prez_gop == 1 ~ "gop",
+      prez_dem == 1 ~ "dem")) |> 
+  select(year, month, president, everything(), -c(prez_dem, prez_gop, day))
+```
+
+
+**Second, clean the data in snp.csv using a similar process to the above. For consistency across datasets, arrange according to year and month, and organize so that year and month are the leading columns.**
+
+```{r}
+snp = 
+  read_csv("data/snp.csv") |> 
+  janitor::clean_names() |> 
+  separate(
+    date, into = c("month", "day", "year"), sep = "/") |> 
+  mutate(
+    year = as.integer(year),
+    year = ifelse(year < 50, 2000 + year, 1900 + year),
+    month = as.integer(month)
+  ) |> 
+  select(year, month, everything(), -day) |> 
+  arrange(year, month)
+```
+
+
+**Third, tidy the unemployment data so that it can be merged with the previous datasets. This process will involve switching from “wide” to “long” format; ensuring that key variables have the same name; and ensuring that key variables take the same values.**
+
+```{r}
+unemploy = 
+  read_csv("data/unemployment.csv") |> 
+  janitor::clean_names() |> 
+  pivot_longer(
+    cols = jan:dec,
+    names_to = 'month',
+    values_to = 'percentage'
+  ) |> 
+  mutate(
+    month = match(month, tolower(month.abb)),
+    year = as.integer(year)
+  )
+
+```
+
+
+**Join the datasets by merging snp into pols, and merging unemployment into the result.**
+
+```{r}
+merge_df = 
+  left_join(snp, pols_month, by = c("year", "month")) |> 
+  left_join(unemploy, by = c("year", "month"))
+```
+
+**Write a short paragraph about these datasets. Explain briefly what each dataset contained, and describe the resulting dataset (e.g. give the dimension, range of years, and names of key variables).**
+
+The `pols_month` dataset has `r nrow(pols_month)` rows of observations and `r ncol(pols_month)` variables, recording the political composition of national politicians from 1947 to 2015. It includes indicators of whether the president was Republican or Democratic (`president`), as well as counts of Republican and Democratic governors (`gov_gop`, `gov_dem`), senators (`sen_gop`, `sen_dem`), and representatives (`rep_gop`, `rep_dem`) at each point in time. The `snp` dataset contains daily closing prices of the S&P 500, with `r nrow(snp)` observations from 1950 to 2015. The `unemploy` dataset contains monthly percentage of unemployment from 1948 to 2015. 
+
+These three datasets were merged using `left_join()` with `snp` dataset as the reference. The merge was performed on the year and month variables, the resulting dataset allows analysis of the relationship between political composition, unemployment indicators, and stock market performance. The merged dataset spans the years 1950 to 2015.
+
+
+## Problem 2
+
+**Read and clean the Mr. Trash Wheel sheet: specify the sheet in the Excel file and to omit non-data entries (rows with notes / figures; columns containing notes) using arguments in read_excel use reasonable variable names. omit rows that do not include dumpster-specific data round the number of sports balls to the nearest integer and converts the result to an integer variable (using as.integer)**
+
+```{r}
+mr_trash = 
+  read_excel(
+    "data/202409 Trash Wheel Collection Data.xlsx", 
+    sheet = "Mr. Trash Wheel", 
+    skip = 1,
+    na = c("NA", "")) |> 
+  janitor::clean_names() |> 
+  filter(!is.na(dumpster)) |>
+  select(dumpster:homes_powered) |> 
+  mutate(
+    year = as.double(year),
+    sports_balls = as.integer(round(sports_balls))
+  ) 
+```
+
+
+**Use a similar process to import, clean, and organize the data for Professor Trash Wheel and Gwynnda.**
+
+Professor Trash Wheel dataset
+
+```{r}
+professor_trash = 
+  read_excel(
+    "data/202409 Trash Wheel Collection Data.xlsx", 
+    sheet = "Professor Trash Wheel", 
+    skip = 1,
+    na = c("NA","")) |> 
+  janitor::clean_names() |> 
+  filter(!is.na(dumpster), !is.na(date)) 
+```
+
+Gwynnda Trash Wheel dataset
+
+```{r}
+gwynnda_trash = 
+  read_excel(
+    "data/202409 Trash Wheel Collection Data.xlsx", 
+    sheet = "Gwynnda Trash Wheel", 
+    skip = 1,
+    na = c("NA","")) |> 
+  janitor::clean_names() |> 
+  filter(!is.na(dumpster)) 
+```
+
+Combine this with the Mr. Trash Wheel dataset to produce a single tidy dataset. To keep track of which Trash Wheel is which, you may need to add an additional variable to both datasets before combining.
+
+```{r}
+merged_trash =
+  bind_rows(
+    mr_trash |>  mutate(wheel = "mr"),
+    professor_trash |>  mutate(wheel = "professor"),
+    gwynnda_trash |>  mutate(wheel = "gwynnda")
+  ) |> 
+  select(wheel, everything())
+```
+
+
+**Write a paragraph about these data; you are encouraged to use inline R. Be sure to note the number of observations in the resulting dataset, and give examples of key variables. For available data, what was the total weight of trash collected by Professor Trash Wheel? What was the total number of cigarette butts collected by Gwynnda in June of 2022?**
+
+The `mr_trash` dataset has `r nrow(mr_trash)` dumpsters recorded with `r ncol(mr_trash)` different variables describing the collection. 
+Across all three wheels,the data include measures such as total trash weight (`weight_tons`), the number of discarded cigarette butts (`cigarette_butts`), polystyrene (`polystyrene`), plastic bottles (`plastic_bottles`), glass bottles (`glass_bottles`), plastic bags (`plastic_bags`), and wrappers (`wrappers`). Only Mr. trash wheel collected the data of the number of sports ball (`sports_balls`).
+
+The `Professor Trash Wheel` recorded `r nrow(professor_trash)` dumpsters and total weight of trash collected was `r sum(professor_trash$weight_tons)` tons. 
+
+The `Gwynnda Trash Wheel` collected `r nrow(gwynnda_trash)` dumpsters data collection and collected the total number of cigarette butts was `r format(sum(gwynnda_trash$cigarette_butts[gwynnda_trash$year == 2022 & gwynnda_trash$month == "June"]))` in June of 2022.
+
+
+
+## Problem 3
+
+**Create a single, well-organized dataset with all the information contained in these data files. To that end: import, clean, tidy, and otherwise wrangle each of these datasets; check for completeness and correctness across datasets (e.g. by viewing individual datasets and monitoring warning messages);**
+
+Import, clean, tidy NYC zipcode dataset 
+
+```{r}
+zipcode = 
+  read_csv("data/Zip Codes.csv") |> 
+  janitor::clean_names()
+```
+
+Import, clean, tidy  Zillow Observed Rent Index (ZORI) in New York City dataset
+
+```{r}
+zori_nyc = 
+  read_csv("data/Zip_zori_uc_sfrcondomfr_sm_month_NYC.csv") |> 
+  janitor::clean_names() |> 
+  rename(
+    zip_code = region_name,
+    county = county_name
+  ) |> 
+  mutate(
+    county = str_remove(county, " County$")
+  )
+```
+
+merge to create a single, final dataset; and organize this so that variables and observations are in meaningful orders.
+
+```{r}
+merge_zori = 
+  left_join(zori_nyc, zipcode, by = c("zip_code","county")) |> 
+  select(state_fips:neighborhood, everything())
+```
+
+**Briefly describe the resulting tidy dataset. How many total observations exist? How many unique ZIP codes are included, and how many unique neighborhoods?**
+
+The merged dataset `merge_zori` combines rental price information from the Zillow Observed Rent Index (ZORI) with demographic and geographic details from the NYC Zip Code dataset. In total, it contains `r nrow(merge_zori)` observations with `r length(unique(merge_zori$zip_code))` unique zip codes and `r length(unique(merge_zori$neighborhood))` unique neighborhoods. Each observation includes the state FIPS code, county, borough, and neighborhood, along with rental price estimates (ZORI) tracked over time. 
+
+
+**Which ZIP codes appear in the ZIP code dataset but not in the Zillow Rental Price dataset? Using a few illustrative examples discuss why these ZIP codes might be excluded from the Zillow dataset.**
+
+```{r}
+not_included = 
+  anti_join(zipcode, zori_nyc, by = "zip_code") 
+```
+
+There are `r nrow(not_included)` ZIP codes that appear in the ZIP code dataset but do not appear in the Zillow Rental Price dataset. Some of these ZIP codes might correspond to commercial or industrial zones rather than residential areas, meaning there would be little or no rental housing data available. Also Zillow may lack sufficient listings or reliable rental price estimates in those areas, especially if the residential population is small or housing turnover is limited.
+
+
+**Rental prices fluctuated dramatically during the COVID-19 pandemic. For all available ZIP codes, compare rental prices in January 2021 to prices in January 2020. Make a table that shows the 10 ZIP codes (along with the borough and neighborhood) with largest drop in price from January 2020 to 2021. Comment.**
+
+
