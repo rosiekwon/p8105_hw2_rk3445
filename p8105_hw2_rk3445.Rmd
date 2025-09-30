@@ -22,6 +22,7 @@ pols_month =
   mutate(
     year = as.integer(year),
     month = as.integer(month),
+    month = month.name[month],
     president = case_when(
       prez_gop == 1 ~ "gop",
       prez_dem == 1 ~ "dem")) |> 
@@ -43,7 +44,10 @@ snp =
     month = as.integer(month)
   ) |> 
   select(year, month, everything(), -day) |> 
-  arrange(year, month)
+  arrange(year, month) |> 
+  mutate(
+    month = month.name[month]
+    )
 ```
 
 
@@ -59,7 +63,9 @@ unemploy =
     values_to = 'percentage'
   ) |> 
   mutate(
-    month = match(month, tolower(month.abb)),
+    month = str_to_title(month),
+    month = match(month, month.abb),
+    month = month.name[month],
     year = as.integer(year)
   )
 
@@ -70,7 +76,7 @@ unemploy =
 
 ```{r}
 merge_df = 
-  left_join(snp, pols_month, by = c("year", "month")) |> 
+  left_join(pols_month, snp, by = c("year", "month")) |> 
   left_join(unemploy, by = c("year", "month"))
 ```
 
@@ -78,7 +84,7 @@ merge_df =
 
 The `pols_month` dataset has `r nrow(pols_month)` rows of observations and `r ncol(pols_month)` variables, recording the political composition of national politicians from 1947 to 2015. It includes indicators of whether the president was Republican or Democratic (`president`), as well as counts of Republican and Democratic governors (`gov_gop`, `gov_dem`), senators (`sen_gop`, `sen_dem`), and representatives (`rep_gop`, `rep_dem`) at each point in time. The `snp` dataset contains daily closing prices of the S&P 500, with `r nrow(snp)` observations from 1950 to 2015. The `unemploy` dataset contains monthly percentage of unemployment from 1948 to 2015. 
 
-These three datasets were merged using `left_join()` with `snp` dataset as the reference. The merge was performed on the year and month variables, the resulting dataset allows analysis of the relationship between political composition, unemployment indicators, and stock market performance. The merged dataset spans the years 1950 to 2015.
+These three datasets were merged using `left_join()` with `pols_month` dataset as the reference. The merge was performed on the year and month variables, the resulting dataset allows analysis of the relationship between political composition, unemployment indicators, and stock market performance. The merged dataset spans the years 1950 to 2015.
 
 
 ## Problem 2
@@ -88,13 +94,12 @@ These three datasets were merged using `left_join()` with `snp` dataset as the r
 ```{r}
 mr_trash = 
   read_excel(
-    "data/202409 Trash Wheel Collection Data.xlsx", 
+    "data/202509 Trash Wheel Collection Data.xlsx", 
     sheet = "Mr. Trash Wheel", 
-    skip = 1,
+    range = "A2:N709",
     na = c("NA", "")) |> 
   janitor::clean_names() |> 
   filter(!is.na(dumpster)) |>
-  select(dumpster:homes_powered) |> 
   mutate(
     year = as.double(year),
     sports_balls = as.integer(round(sports_balls))
@@ -109,21 +114,21 @@ Professor Trash Wheel dataset
 ```{r}
 professor_trash = 
   read_excel(
-    "data/202409 Trash Wheel Collection Data.xlsx", 
+    "data/202509 Trash Wheel Collection Data.xlsx", 
     sheet = "Professor Trash Wheel", 
     skip = 1,
     na = c("NA","")) |> 
   janitor::clean_names() |> 
-  filter(!is.na(dumpster), !is.na(date)) 
+  filter(!is.na(dumpster)) 
 ```
 
-Gwynnda Trash Wheel dataset
+Gwynns Falls Trash Wheel dataset
 
 ```{r}
-gwynnda_trash = 
+gwynns_trash = 
   read_excel(
-    "data/202409 Trash Wheel Collection Data.xlsx", 
-    sheet = "Gwynnda Trash Wheel", 
+    "data/202509 Trash Wheel Collection Data.xlsx", 
+    sheet = "Gwynns Falls Trash Wheel", 
     skip = 1,
     na = c("NA","")) |> 
   janitor::clean_names() |> 
@@ -135,22 +140,25 @@ Combine this with the Mr. Trash Wheel dataset to produce a single tidy dataset. 
 ```{r}
 merged_trash =
   bind_rows(
-    mr_trash |>  mutate(wheel = "mr"),
+    mr_trash |>  mutate(wheel = "Mr"),
     professor_trash |>  mutate(wheel = "professor"),
-    gwynnda_trash |>  mutate(wheel = "gwynnda")
+    gwynns_trash |>  mutate(wheel = "gwynns")
   ) |> 
   select(wheel, everything())
 ```
 
 
+
 **Write a paragraph about these data; you are encouraged to use inline R. Be sure to note the number of observations in the resulting dataset, and give examples of key variables. For available data, what was the total weight of trash collected by Professor Trash Wheel? What was the total number of cigarette butts collected by Gwynnda in June of 2022?**
+
+The `merged_trash` dataset contains information on `r nrow(merged_trash)` dumpsters collected by three different wheels, covering the period from `r min(merged_trash$year)` to `r max(merged_trash$year)`. 
 
 The `mr_trash` dataset has `r nrow(mr_trash)` dumpsters recorded with `r ncol(mr_trash)` different variables describing the collection. 
 Across all three wheels,the data include measures such as total trash weight (`weight_tons`), the number of discarded cigarette butts (`cigarette_butts`), polystyrene (`polystyrene`), plastic bottles (`plastic_bottles`), glass bottles (`glass_bottles`), plastic bags (`plastic_bags`), and wrappers (`wrappers`). Only Mr. trash wheel collected the data of the number of sports ball (`sports_balls`).
 
 The `Professor Trash Wheel` recorded `r nrow(professor_trash)` dumpsters and total weight of trash collected was `r sum(professor_trash$weight_tons)` tons. 
 
-The `Gwynnda Trash Wheel` collected `r nrow(gwynnda_trash)` dumpsters data collection and collected the total number of cigarette butts was `r format(sum(gwynnda_trash$cigarette_butts[gwynnda_trash$year == 2022 & gwynnda_trash$month == "June"]))` in June of 2022.
+The `Gwynns Falls Trash Wheel` collected `r nrow(gwynns_trash)` dumpsters data collection and collected the total number of cigarette butts was `r format(sum(gwynns_trash$cigarette_butts[gwynns_trash$year == 2022 & gwynns_trash$month == "June"]))` in June of 2022.
 
 
 
@@ -169,54 +177,44 @@ zipcode =
 Import, clean, tidy  Zillow Observed Rent Index (ZORI) in New York City dataset
 
 ```{r}
-zori_nyc = 
+zillow_nyc = 
   read_csv("data/Zip_zori_uc_sfrcondomfr_sm_month_NYC.csv") |> 
-  janitor::clean_names() |> 
+  janitor::clean_names() |>
   rename(
-    zip_code = region_name,
+    zip_code = region_name
+  ) |> 
+  pivot_longer(
+    x2015_01_31:x2024_08_31,
+    names_to = "date",
+    values_to = "zori",
+    names_prefix = "x"
   ) |> 
   mutate(
     county_name = str_remove(county_name, " County$")
-  )
+  ) 
 ```
 
-merge to create a single, final dataset; and organize this so that variables and observations are in meaningful orders.
+Merge to create a single, final dataset; and organize this so that variables and observations are in meaningful orders.
 
-
-```{r}
-A = zori_nyc |> 
-  select(region_name = zip_code, county_name)
-
-B = zipcode |> 
-  select(zip_code, county)
-
-compare_county = 
-  left_join(A, B, by = c("region_name" = "zip_code")) |> 
-  mutate(
-    county_clean = str_remove(county_name, " County$"),
-    match = county_clean == county
-  )
-```
-While both datasets contain county information, these labels are not always consistent. Therefore, in the merged dataset, I used zip_code as the unique join key between Zillow ZORI data and NYC ZIP code data.
- 
+While both datasets contain county information, these labels are not always consistent. Therefore, in the merged dataset, I used only zip_code as the unique join key between Zillow ZORI data and NYC ZIP code data.
  
 ```{r}
 merge_zori = 
-  left_join(zori_nyc, zipcode, by = c("zip_code")) |> 
+  left_join(zipcode, zillow_nyc, by = "zip_code", relationship = 'many-to-many') |> 
   select(county:neighborhood, everything())
 ```
 
 
 **Briefly describe the resulting tidy dataset. How many total observations exist? How many unique ZIP codes are included, and how many unique neighborhoods?**
 
-The merged dataset `merge_zori` combines rental price information from the Zillow Observed Rent Index (ZORI) with demographic and geographic details from the NYC Zip Code dataset. In total, it contains `r nrow(merge_zori)` observations with `r length(unique(merge_zori$zip_code))` unique zip codes and `r length(unique(merge_zori$neighborhood))` unique neighborhoods. Each observation includes the state FIPS code, county, borough, and neighborhood, along with rental price estimates (ZORI) tracked over time. 
+The merged dataset `merge_zori` combines rental price information from the Zillow Observed Rent Index (ZORI) with demographic and geographic details from the NYC Zip Code dataset. In total, it contains `r nrow(merge_zori)` observations with `r length(unique(merge_zori$zip_code))` unique zip codes and `r length(unique(merge_zori$neighborhood))` unique neighborhoods. Each observation includes the state zip code, county, borough, and neighborhood, along with rental price estimates (ZORI) tracked over time. 
 
 
 **Which ZIP codes appear in the ZIP code dataset but not in the Zillow Rental Price dataset? Using a few illustrative examples discuss why these ZIP codes might be excluded from the Zillow dataset.**
 
 ```{r}
 not_included = 
-  anti_join(zipcode, zori_nyc, by = "zip_code") 
+  anti_join(zipcode, zillow_nyc, by = "zip_code") 
 ```
 
 There are `r nrow(not_included)` ZIP codes that appear in the ZIP code dataset but do not appear in the Zillow Rental Price dataset. Some of these ZIP codes might correspond to commercial or industrial zones rather than residential areas, meaning there would be little or no rental housing data available. Also Zillow may lack sufficient listings or reliable rental price estimates in those areas, especially if the residential population is small or housing turnover is limited.
@@ -226,9 +224,17 @@ There are `r nrow(not_included)` ZIP codes that appear in the ZIP code dataset b
 
 ```{r}
 covid_19 = merge_zori |> 
-  select(zip_code, county, neighborhood, x2020_01_31, x2021_01_31) |> 
+  select(zip_code, county, neighborhood, date, zori) |> 
+  filter(
+    date %in% c("2020_01_31", "2021_01_31")
+  ) |> 
+  pivot_wider(
+    names_from = date,
+    values_from = zori,
+    names_prefix = "zori_"
+  ) |> 
   mutate(
-    drop = x2020_01_31 - x2021_01_31
+    drop = zori_2020_01_31 - zori_2021_01_31
   ) |> 
   arrange(desc(drop)) |> 
   slice(1:10) 
@@ -237,5 +243,4 @@ covid_19 = merge_zori |>
 knitr::kable(covid_19)
 ```
 
-The 10 zipcopde with the largest drop in price during the COVID-19 pandemic are all located in New York county (Manhattan borough). The maximum drop was about `r round(max(covid_19$drop),0)`, observed in `r covid_19$neighborhood[1]`. The neighborhoods represented include `r paste(na.omit(unique(covid_19$neighborhood)), collapse = ", ")`.
-
+The 10 zipcopde with the largest drop in price during the COVID-19 pandemic are all located in New York county (Manhattan borough). The maximum drop was about `r round(max(covid_19$drop),0)`, observed in `r covid_19$neighborhood[1]`. The neighborhoods represented include `r paste(na.omit(unique(covid_19$neighborhood)), collapse = ", ")`. This may be because mainly commuters and tourists are concentrated in New York county but during the COVID-19 people can not travel or commute and due to social distancing policies and remote working. Therefore, rents in New York county dropped much than in other counties.
