@@ -202,6 +202,8 @@ While both datasets contain county information, these labels are not always cons
 merge_zori = 
   left_join(zipcode, zillow_nyc, by = "zip_code", relationship = 'many-to-many') |> 
   select(county:neighborhood, everything())
+
+merge_zori
 ```
 
 
